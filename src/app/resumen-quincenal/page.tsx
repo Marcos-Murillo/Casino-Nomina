@@ -369,7 +369,7 @@ export default function ResumenQuincenal() {
             }
         </style>
     <body>
-      <h1>Resumen Quincenal</h1>
+      <h1>Desprendible de nomina</h1>
       
       <div class="header">
         <div>
@@ -387,52 +387,61 @@ export default function ResumenQuincenal() {
           <tr>
             <th>Tipo de Hora</th>
             <th>Cantidad</th>
+            <th>Valor Unitario</th>
             <th>Total</th>
           </tr>
         </thead>
         <tbody>
           <tr class="total">
             <td>Horas a la Quincena</td>
-            <td>${(resumen.horasNormales + resumen.horasNormalNocturnas).toFixed(2)}</td>
-            <td>$${((resumen.horasNormales + resumen.horasNormalNocturnas) * (empleado?.valorHora || 0)).toLocaleString()}</td>
+            <td>${(resumen.horasNormales + resumen.horasNormalNocturnas + resumen.horasFeriadoDiurnas + resumen.horasFeriadoDiurnas).toFixed(2)}</td>
+            <td>$${empleado?.valorHora.toLocaleString() || 0}</td>
+            <td>$${((resumen.horasNormales + resumen.horasNormalNocturnas + resumen.horasFeriadoDiurnas + resumen.horasFeriadoDiurnas) * (empleado?.valorHora || 0)).toLocaleString()}</td>
           </tr>
           <tr>
-            <td>Horas Extra Diurnas (HED)</td>
-            <td>${resumen.horasExtraDiurnas.toFixed(2)}</td>
-            <td>$${(resumen.horasExtraDiurnas * (empleado?.horaExtraDiurna || 0)).toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>Horas Normal Nocturnas (HNN)</td>
-            <td>${resumen.horasNormalNocturnas.toFixed(2)}</td>
-            <td>$${(resumen.horasNormalNocturnas * (empleado?.horaNormalNocturna || 0)).toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>Horas Extra Nocturnas (HEN)</td>
-            <td>${resumen.horasExtraNocturnas.toFixed(2)}</td>
-            <td>$${(resumen.horasExtraNocturnas * (empleado?.horaExtraNocturna || 0)).toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>Horas Feriado Diurnas (HFD)</td>
-            <td>${resumen.horasFeriadoDiurnas.toFixed(2)}</td>
-            <td>$${(resumen.horasFeriadoDiurnas * (empleado?.horaFeriadaDiurna || 0)).toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>Horas Extra Feriado Diurnas (HEFD)</td>
-            <td>${resumen.horasExtraFeriadoDiurnas.toFixed(2)}</td>
-            <td>$${(resumen.horasExtraFeriadoDiurnas * (empleado?.horaExtraFeriadaDiurna || 0)).toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>Horas Feriado Nocturnas (HFN)</td>
-            <td>${resumen.horasFeriadoNocturnas.toFixed(2)}</td>
-            <td>$${(resumen.horasFeriadoNocturnas * (empleado?.horaNocturnaDiurna || 0)).toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>Horas Extra Feriado Nocturnas (HEFN)</td>
-            <td>${resumen.horasExtraFeriadoNocturnas.toFixed(2)}</td>
-            <td>$${(resumen.horasExtraFeriadoNocturnas * (empleado?.horaExtraFeriadaNocturna || 0)).toLocaleString()}</td>
-          </tr>
-        </tbody>
-      </table>
+                <td>Horas Extra Diurnas (HED)</td>
+                <td>${resumen.horasExtraDiurnas.toFixed(2)}</td>
+                <td>$${empleado?.horaExtraDiurna.toLocaleString() || 0}</td>
+                <td>$${(resumen.horasExtraDiurnas * (empleado?.horaExtraDiurna || 0)).toLocaleString()}</td>
+              </tr>
+              <tr>
+                <td>Horas Normal Nocturnas (HNN)</td>
+                <td>${resumen.horasNormalNocturnas.toFixed(2)}</td>
+                <td>$${empleado?.horaNormalNocturna.toLocaleString() || 0}</td>
+                <td>$${(resumen.horasNormalNocturnas * (empleado?.horaNormalNocturna || 0)).toLocaleString()}</td>
+              </tr>
+              <tr>
+                <td>Horas Extra Nocturnas (HEN)</td>
+                <td>${resumen.horasExtraNocturnas.toFixed(2)}</td>
+                <td>$${empleado?.horaExtraNocturna.toLocaleString() || 0}</td>
+                <td>$${(resumen.horasExtraNocturnas * (empleado?.horaExtraNocturna || 0)).toLocaleString()}</td>
+              </tr>
+              <tr>
+                <td>Horas Feriado Diurnas (HFD)</td>
+                <td>${resumen.horasFeriadoDiurnas.toFixed(2)}</td>
+                <td>${empleado?.horaFeriadaDiurna.toLocaleString() || 0}</td>
+                <td>$${(resumen.horasFeriadoDiurnas * (empleado?.horaFeriadaDiurna || 0)).toLocaleString()}</td>
+              </tr>
+              <tr>
+                <td>Horas Extra Feriado Diurnas (HEFD)</td>
+                <td>${resumen.horasExtraFeriadoDiurnas.toFixed(2)}</td>
+                <td>$${empleado?.horaExtraFeriadaDiurna.toLocaleString() || 0}</td>
+                <td>$${(resumen.horasExtraFeriadoDiurnas * (empleado?.horaExtraFeriadaDiurna || 0)).toLocaleString()}</td>
+              </tr>
+              <tr>
+                <td>Horas Feriado Nocturnas (HFN)</td>
+                <td>${resumen.horasFeriadoNocturnas.toFixed(2)}</td>
+                <td>$${empleado?.horaNocturnaDiurna.toLocaleString() || 0}</td>
+                <td>$${(resumen.horasFeriadoNocturnas * (empleado?.horaNocturnaDiurna || 0)).toLocaleString()}</td>
+              </tr>
+              <tr>
+                <td>Horas Extra Feriado Nocturnas (HEFN)</td>
+                <td>${resumen.horasExtraFeriadoNocturnas.toFixed(2)}</td>
+                <td>$${empleado?.horaExtraFeriadaNocturna.toLocaleString() || 0}</td>
+                <td>$${(resumen.horasExtraFeriadoNocturnas * (empleado?.horaExtraFeriadaNocturna || 0)).toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
       
       <h2>Información Adicional</h2>
       <table>
@@ -474,10 +483,6 @@ export default function ResumenQuincenal() {
           <tr>
             <td>Seguridad Social</td>
             <td>$${resumen.deducciones.seguridadSocial.toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>Póliza Sura</td>
-            <td>$${resumen.deducciones.polizaSura.toLocaleString()}</td>
           </tr>
           <tr>
             <td>Adelanto Nómina</td>

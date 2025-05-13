@@ -5,7 +5,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMont
 import { es } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "../components/ui/form"
 import { Input } from "../components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
@@ -14,10 +14,11 @@ import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Loader2, ChevronLeft, ChevronRight, Plus } from "lucide-react"
+import { Loader2, ChevronLeft, ChevronRight, Plus, AlertCircle, Wifi, WifiOff } from "lucide-react"
 import { useToast } from "../hooks/use-toast"
 import { empleados, type RegistroHora } from "../data/empleados"
 import { obtenerRegistrosHoras, guardarRegistroHora, eliminarRegistroHora } from "../firebase/services"
+import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert"
 
 // Definir el esquema para el formulario de edición
 const formSchema = z.object({
@@ -45,11 +46,14 @@ export default function CalendarioHorarios() {
   const [mesActual, setMesActual] = useState(new Date())
   const [registros, setRegistros] = useState<RegistroHora[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false) // Estado separado para guardar
   const [registroSeleccionado, setRegistroSeleccionado] = useState<RegistroHora | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [diaSeleccionado, setDiaSeleccionado] = useState<Date | null>(null)
   const [isNuevoHorarioDialogOpen, setIsNuevoHorarioDialogOpen] = useState(false)
   const [isDataLoaded, setIsDataLoaded] = useState(false)
+  const [isOnline, setIsOnline] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -72,6 +76,23 @@ export default function CalendarioHorarios() {
       esHoraExtra: false,
     },
   })
+
+  // Verificar estado de conexión
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+
+    window.addEventListener("online", handleOnline)
+    window.addEventListener("offline", handleOffline)
+
+    // Establecer estado inicial
+    setIsOnline(navigator.onLine)
+
+    return () => {
+      window.removeEventListener("online", handleOnline)
+      window.removeEventListener("offline", handleOffline)
+    }
+  }, [])
 
   // Observar cambios en esHoraExtra para resetear tipoHoraExtra cuando se desmarca
   const esHoraExtra = form.watch("esHoraExtra")
@@ -97,7 +118,13 @@ export default function CalendarioHorarios() {
   useEffect(() => {
     const cargarRegistros = async () => {
       setIsLoading(true)
+      setError(null)
+
       try {
+        if (!navigator.onLine) {
+          throw new Error("No hay conexión a internet. Verifica tu conexión e intenta nuevamente.")
+        }
+
         const data = await obtenerRegistrosHoras()
         // Filtrar registros para el mes actual
         const registrosFiltrados = data.filter((registro) => {
@@ -107,9 +134,10 @@ export default function CalendarioHorarios() {
         setRegistros(registrosFiltrados)
       } catch (error) {
         console.error("Error al cargar registros:", error)
+        setError(error instanceof Error ? error.message : "Error al cargar los registros")
         toast({
           title: "Error",
-          description: "No se pudieron cargar los registros",
+          description: "No se pudieron cargar los registros. Verifica tu conexión a internet.",
           variant: "destructive",
         })
       } finally {
@@ -213,7 +241,19 @@ export default function CalendarioHorarios() {
   const onSubmit = async (values: FormValues) => {
     if (!registroSeleccionado || !registroSeleccionado.id) return
 
-    setIsLoading(true)
+    // Verificar conexión a internet
+    if (!navigator.onLine) {
+      toast({
+        title: "Sin conexión",
+        description: "No hay conexión a internet. Verifica tu conexión e intenta nuevamente.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+
     try {
       const tipoRecargo = determinarTipoRecargo(
         values.horaInicio,
@@ -242,7 +282,10 @@ export default function CalendarioHorarios() {
 
       // Eliminar el registro anterior y crear uno nuevo
       await eliminarRegistroHora(registroSeleccionado.id)
-      await guardarRegistroHora(registroActualizado)
+      const nuevoId = await guardarRegistroHora(registroActualizado)
+
+      // Asegurarse de que el ID se mantenga o se actualice correctamente
+      registroActualizado.id = nuevoId || registroSeleccionado.id
 
       // Actualizar la lista de registros
       setRegistros(registros.map((r) => (r.id === registroSeleccionado.id ? registroActualizado : r)))
@@ -255,13 +298,14 @@ export default function CalendarioHorarios() {
       setIsDialogOpen(false)
     } catch (error) {
       console.error("Error al actualizar registro:", error)
+      setError(error instanceof Error ? error.message : "Error al actualizar el registro")
       toast({
         title: "Error",
-        description: "No se pudo actualizar el registro",
+        description: "No se pudo actualizar el registro. Verifica tu conexión a internet.",
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      setIsSaving(false)
     }
   }
 
@@ -269,7 +313,19 @@ export default function CalendarioHorarios() {
   const onSubmitNuevoHorario = async (values: FormValues) => {
     if (!diaSeleccionado) return
 
-    setIsLoading(true)
+    // Verificar conexión a internet
+    if (!navigator.onLine) {
+      toast({
+        title: "Sin conexión",
+        description: "No hay conexión a internet. Verifica tu conexión e intenta nuevamente.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+
     try {
       const tipoRecargo = determinarTipoRecargo(
         values.horaInicio,
@@ -296,9 +352,9 @@ export default function CalendarioHorarios() {
       }
 
       // Guardar en Firebase
-      try {
-        const id = await guardarRegistroHora(nuevoRegistro)
+      const id = await guardarRegistroHora(nuevoRegistro)
 
+      if (id) {
         // Actualizar la lista de registros con el ID devuelto por Firebase
         setRegistros([...registros, { ...nuevoRegistro, id }])
 
@@ -308,24 +364,19 @@ export default function CalendarioHorarios() {
         })
 
         setIsNuevoHorarioDialogOpen(false)
-      } catch (firebaseError: any) {
-        console.error("Error específico de Firebase:", firebaseError)
-        toast({
-          title: "Error de base de datos",
-          description:
-            "No se pudo guardar en la base de datos. Detalles: " + (firebaseError.message || "Error desconocido"),
-          variant: "destructive",
-        })
+      } else {
+        throw new Error("No se pudo obtener el ID del nuevo registro")
       }
     } catch (error: any) {
       console.error("Error al registrar horario:", error)
+      setError(error instanceof Error ? error.message : "Error al registrar el horario")
       toast({
         title: "Error",
-        description: "No se pudo registrar el horario. Verifique los datos ingresados. " + error.message,
+        description: "No se pudo registrar el horario. Verifica tu conexión a internet.",
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      setIsSaving(false)
     }
   }
 
@@ -394,6 +445,41 @@ export default function CalendarioHorarios() {
 
   return (
     <main className="min-h-screen bg-background p-6">
+      {!isOnline && (
+        <Alert variant="destructive" className="mb-4">
+          <WifiOff className="h-4 w-4" />
+          <AlertTitle>Sin conexión a internet</AlertTitle>
+          <AlertDescription>
+            No tienes conexión a internet. Algunas funciones pueden no estar disponibles.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">Calendario de Horarios</h1>
+        <div className="flex items-center gap-2">
+          {isOnline ? (
+            <div className="flex items-center text-green-600">
+              <Wifi className="h-4 w-4 mr-1" />
+              <span className="text-sm">Conectado</span>
+            </div>
+          ) : (
+            <div className="flex items-center text-red-600">
+              <WifiOff className="h-4 w-4 mr-1" />
+              <span className="text-sm">Sin conexión</span>
+            </div>
+          )}
+        </div>
+      </div>
+
       <Card className="mx-auto max-w-7xl">
         <CardHeader className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
           <CardTitle className="text-2xl font-bold">Calendario de Horarios</CardTitle>
@@ -459,8 +545,9 @@ export default function CalendarioHorarios() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0 rounded-full bg-muted hover:bg-gray-200"
+                      className="h-6 w-6 p-0 rounded-full bg-gray-100 hover:bg-gray-200"
                       onClick={() => abrirDialogoNuevoHorario(dia)}
+                      disabled={!isOnline}
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
@@ -473,7 +560,12 @@ export default function CalendarioHorarios() {
       </Card>
 
       {/* Diálogo para editar horario */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          if (!isSaving) setIsDialogOpen(open)
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Editar Horario</DialogTitle>
@@ -602,22 +694,27 @@ export default function CalendarioHorarios() {
                 />
               )}
 
-              <div className="flex justify-end space-x-2">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Guardar Cambios
+                <Button type="submit" disabled={isSaving || !isOnline}>
+                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isSaving ? "Guardando..." : "Guardar Cambios"}
                 </Button>
-              </div>
+              </DialogFooter>
             </form>
           </Form>
         </DialogContent>
       </Dialog>
 
       {/* Diálogo para nuevo horario */}
-      <Dialog open={isNuevoHorarioDialogOpen} onOpenChange={setIsNuevoHorarioDialogOpen}>
+      <Dialog
+        open={isNuevoHorarioDialogOpen}
+        onOpenChange={(open) => {
+          if (!isSaving) setIsNuevoHorarioDialogOpen(open)
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -748,15 +845,20 @@ export default function CalendarioHorarios() {
                 />
               )}
 
-              <div className="flex justify-end space-x-2">
-                <Button type="button" variant="outline" onClick={() => setIsNuevoHorarioDialogOpen(false)}>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsNuevoHorarioDialogOpen(false)}
+                  disabled={isSaving}
+                >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Guardar Horario
+                <Button type="submit" disabled={isSaving || !isOnline}>
+                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isSaving ? "Guardando..." : "Guardar Horario"}
                 </Button>
-              </div>
+              </DialogFooter>
             </form>
           </Form>
         </DialogContent>

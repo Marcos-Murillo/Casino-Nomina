@@ -384,7 +384,9 @@ export default function ResumenEmpleados() {
 
   const handleDeduccionesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    const valorNumerico = value === "" ? 0 : Number(value.replace(/,/g, ""))
+
+    // Eliminar comas y convertir a número, pero mantener el valor como string en el estado
+    const valorLimpio = value.replace(/,/g, "")
 
     setResumenesEmpleados(
       resumenesEmpleados.map((resumen) => {
@@ -393,7 +395,7 @@ export default function ResumenEmpleados() {
             ...resumen,
             deducciones: {
               ...resumen.deducciones,
-              [name]: valorNumerico,
+              [name]: valorLimpio === "" ? 0 : Number(valorLimpio),
             },
           }
         }
@@ -403,14 +405,14 @@ export default function ResumenEmpleados() {
   }
 
   const handleBeneficioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const valorNumerico = e.target.value === "" ? 0 : Number(e.target.value.replace(/,/g, ""))
+    const valorLimpio = e.target.value.replace(/,/g, "")
 
     setResumenesEmpleados(
       resumenesEmpleados.map((resumen) => {
         if (resumen.empleado === empleadoActivo) {
           return {
             ...resumen,
-            beneficioProductividad: valorNumerico,
+            beneficioProductividad: valorLimpio === "" ? 0 : Number(valorLimpio),
           }
         }
         return resumen
@@ -419,14 +421,14 @@ export default function ResumenEmpleados() {
   }
 
   const handleDiasIncapacidadChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const valorNumerico = e.target.value === "" ? 0 : Number(e.target.value.replace(/,/g, ""))
+    const valorLimpio = e.target.value.replace(/,/g, "")
 
     setResumenesEmpleados(
       resumenesEmpleados.map((resumen) => {
         if (resumen.empleado === empleadoActivo) {
           return {
             ...resumen,
-            diasIncapacidad: valorNumerico,
+            diasIncapacidad: valorLimpio === "" ? 0 : Number(valorLimpio),
           }
         }
         return resumen
@@ -644,7 +646,7 @@ export default function ResumenEmpleados() {
                     <Input
                       id="seguridadSocial"
                       name="seguridadSocial"
-                      value={empleadoSeleccionado.deducciones.seguridadSocial.toLocaleString()}
+                      value={empleadoSeleccionado.deducciones.seguridadSocial}
                       onChange={handleDeduccionesChange}
                       className="col-span-3"
                     />
@@ -656,7 +658,7 @@ export default function ResumenEmpleados() {
                     <Input
                       id="polizaSura"
                       name="polizaSura"
-                      value={empleadoSeleccionado.deducciones.polizaSura.toLocaleString()}
+                      value={empleadoSeleccionado.deducciones.polizaSura}
                       onChange={handleDeduccionesChange}
                       className="col-span-3"
                     />
@@ -668,7 +670,7 @@ export default function ResumenEmpleados() {
                     <Input
                       id="adelantoNomina"
                       name="adelantoNomina"
-                      value={empleadoSeleccionado.deducciones.adelantoNomina.toLocaleString()}
+                      value={empleadoSeleccionado.deducciones.adelantoNomina}
                       onChange={handleDeduccionesChange}
                       className="col-span-3"
                     />
@@ -680,7 +682,7 @@ export default function ResumenEmpleados() {
                     <Input
                       id="otrosDescuentos"
                       name="otrosDescuentos"
-                      value={empleadoSeleccionado.deducciones.otrosDescuentos.toLocaleString()}
+                      value={empleadoSeleccionado.deducciones.otrosDescuentos}
                       onChange={handleDeduccionesChange}
                       className="col-span-6"
                     />
@@ -694,7 +696,7 @@ export default function ResumenEmpleados() {
                     <Input
                       id="beneficioProductividad"
                       name="beneficioProductividad"
-                      value={empleadoSeleccionado.beneficioProductividad.toLocaleString()}
+                      value={empleadoSeleccionado.beneficioProductividad}
                       onChange={handleBeneficioChange}
                       className="col-span-6"
                     />
@@ -708,7 +710,7 @@ export default function ResumenEmpleados() {
                     <Input
                       id="diasIncapacidad"
                       name="diasIncapacidad"
-                      value={empleadoSeleccionado.diasIncapacidad.toLocaleString()}
+                      value={empleadoSeleccionado.diasIncapacidad}
                       onChange={handleDiasIncapacidadChange}
                       className="col-span-3"
                     />
@@ -800,6 +802,7 @@ export default function ResumenEmpleados() {
                           <tr className="border-b bg-muted">
                             <th className="p-3 text-left">DESCRIPCIÓN</th>
                             <th className="p-3 text-right">CAN/SALDO</th>
+                            <th className="p-3 text-right">Valor Unitario</th>
                             <th className="p-3 text-right">DEVENGADO</th>
                           </tr>
                         </thead>
@@ -814,6 +817,7 @@ export default function ResumenEmpleados() {
                                 empleadoSeleccionado.horas.feriadoNocturnas
                               ).toFixed(2)}
                             </td>
+                            <td className="p-3 text-right font-medium">${empleado?.valorHora.toLocaleString() || 0}</td>
                             <td className="p-3 text-right font-medium">
                               $
                               {(
@@ -828,6 +832,7 @@ export default function ResumenEmpleados() {
                           <tr className="border-b">
                             <td className="p-3">HORAS EXTRA DIURNAS (HED)</td>
                             <td className="p-3 text-right">{empleadoSeleccionado.horas.extraDiurnas.toFixed(2)}</td>
+                            <td className="p-3 text-right">${empleado?.horaExtraDiurna.toLocaleString() || 0}</td>
                             <td className="p-3 text-right">
                               ${empleadoSeleccionado.valores.extraDiurnas.toLocaleString()}
                             </td>
@@ -835,6 +840,7 @@ export default function ResumenEmpleados() {
                           <tr className="border-b">
                             <td className="p-3">HORAS NORMAL NOCTURNAS (HNN)</td>
                             <td className="p-3 text-right">{empleadoSeleccionado.horas.normalNocturnas.toFixed(2)}</td>
+                            <td className="p-3 text-right">${empleado?.horaNormalNocturna.toLocaleString() || 0}</td>
                             <td className="p-3 text-right">
                               ${empleadoSeleccionado.valores.normalNocturnas.toLocaleString()}
                             </td>
@@ -842,6 +848,7 @@ export default function ResumenEmpleados() {
                           <tr className="border-b">
                             <td className="p-3">HORAS EXTRA NOCTURNAS (HEN)</td>
                             <td className="p-3 text-right">{empleadoSeleccionado.horas.extraNocturnas.toFixed(2)}</td>
+                            <td className="p-3 text-right">${empleado?.horaExtraNocturna.toLocaleString() || 0}</td>
                             <td className="p-3 text-right">
                               ${empleadoSeleccionado.valores.extraNocturnas.toLocaleString()}
                             </td>
@@ -849,6 +856,7 @@ export default function ResumenEmpleados() {
                           <tr className="border-b">
                             <td className="p-3">HORAS FERIADO DIURNAS (HFD)</td>
                             <td className="p-3 text-right">{empleadoSeleccionado.horas.feriadoDiurnas.toFixed(2)}</td>
+                            <td className="p-3 text-right">${empleado?.horaFeriadaDiurna.toLocaleString() || 0}</td>
                             <td className="p-3 text-right">
                               ${empleadoSeleccionado.valores.feriadoDiurnas.toLocaleString()}
                             </td>
@@ -858,6 +866,7 @@ export default function ResumenEmpleados() {
                             <td className="p-3 text-right">
                               {empleadoSeleccionado.horas.extraFeriadoDiurnas.toFixed(2)}
                             </td>
+                            <td className="p-3 text-right">${empleado?.horaExtraFeriadaDiurna.toLocaleString() || 0}</td>
                             <td className="p-3 text-right">
                               ${empleadoSeleccionado.valores.extraFeriadoDiurnas.toLocaleString()}
                             </td>
@@ -865,6 +874,7 @@ export default function ResumenEmpleados() {
                           <tr className="border-b">
                             <td className="p-3">HORAS FERIADO NOCTURNAS (HFN)</td>
                             <td className="p-3 text-right">{empleadoSeleccionado.horas.feriadoNocturnas.toFixed(2)}</td>
+                            <td className="p-3 text-right">${empleado?.horaNocturnaDiurna.toLocaleString() || 0}</td>
                             <td className="p-3 text-right">
                               ${empleadoSeleccionado.valores.feriadoNocturnas.toLocaleString()}
                             </td>
@@ -874,34 +884,40 @@ export default function ResumenEmpleados() {
                             <td className="p-3 text-right">
                               {empleadoSeleccionado.horas.extraFeriadoNocturnas.toFixed(2)}
                             </td>
+                            <td className="p-3 text-right">${empleado?.horaExtraFeriadaNocturna.toLocaleString() || 0}</td>
                             <td className="p-3 text-right">
                               ${empleadoSeleccionado.valores.extraFeriadoNocturnas.toLocaleString()}
                             </td>
                           </tr>
                           <tr className="border-b">
                             <td className="p-3">AUXILIO TRANSPORTE</td>
-                            <td className="p-3 text-right">-</td>
+                            <td className="p-3 text-right"></td>
+                            <td className="p-3 text-right"></td>
                             <td className="p-3 text-right">
                               ${empleadoSeleccionado.auxilioTransporte.toLocaleString()}
                             </td>
                           </tr>
                           <tr className="border-b">
                             <td className="p-3">AUXILIO DE ALIMENTACIÓN</td>
-                            <td className="p-3 text-right">0</td>
+                            <td className="p-3 text-right"></td>
+                            <td className="p-3 text-right"></td>
                             <td className="p-3 text-right">$0</td>
                           </tr>
                           <tr className="border-b">
                             <td className="p-3">DÍAS INCAPACIDAD</td>
                             <td className="p-3 text-right">{empleadoSeleccionado.diasIncapacidad}</td>
+                            <td className="p-3 text-right"></td>
                             <td className="p-3 text-right">${valorDiasIncapacidad.toLocaleString()}</td>
                           </tr>
                           <tr className="border-b font-semibold bg-muted">
                             <td className="p-3">TOTAL DEVENGADO:</td>
                             <td className="p-3 text-right"></td>
+                            <td className="p-3 text-right"></td>
                             <td className="p-3 text-right">${totalDevengado.toLocaleString()}</td>
                           </tr>
                           <tr className="border-b">
                             <td className="p-3">BENEFICIO POR PRODUCTIVIDAD</td>
+                            <td className="p-3 text-right"></td>
                             <td className="p-3 text-right"></td>
                             <td className="p-3 text-right">
                               ${empleadoSeleccionado.beneficioProductividad.toLocaleString()}
@@ -910,6 +926,7 @@ export default function ResumenEmpleados() {
                           <tr className="font-semibold bg-muted">
                             <td className="p-3"></td>
                             <td className="p-3 text-right">TOTAL</td>
+                            <td className="p-3 text-right"></td>
                             <td className="p-3 text-right">${totalAPagar.toLocaleString()}</td>
                           </tr>
                         </tbody>
@@ -929,12 +946,6 @@ export default function ResumenEmpleados() {
                             <td className="p-3">SEGURIDAD SOCIAL</td>
                             <td className="p-3 text-right">
                               ${empleadoSeleccionado.deducciones.seguridadSocial.toLocaleString()}
-                            </td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="p-3">POLIZA SURA</td>
-                            <td className="p-3 text-right">
-                              ${empleadoSeleccionado.deducciones.polizaSura.toLocaleString()}
                             </td>
                           </tr>
                           <tr className="border-b">
