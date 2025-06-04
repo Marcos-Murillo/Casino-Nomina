@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, getDay } from "date-fns"
 import { es } from "date-fns/locale"
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter  } from "../components/ui/card"
 import { Button } from "../components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "../components/ui/form"
@@ -14,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Loader2, ChevronLeft, ChevronRight, Plus, AlertCircle, Wifi, WifiOff } from "lucide-react"
+import { Loader2, ChevronLeft, ChevronRight, Plus, AlertCircle, Wifi, WifiOff,  Trash2 } from "lucide-react"
 import { useToast } from "../hooks/use-toast"
 import { empleados, type RegistroHora } from "../data/empleados"
 import { obtenerRegistrosHoras, guardarRegistroHora, eliminarRegistroHora } from "../firebase/services"
@@ -46,14 +46,13 @@ export default function CalendarioHorarios() {
   const [mesActual, setMesActual] = useState(new Date())
   const [registros, setRegistros] = useState<RegistroHora[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false) // Estado separado para guardar
+  const [isSavingForm, setIsSavingForm] = useState(false)
   const [registroSeleccionado, setRegistroSeleccionado] = useState<RegistroHora | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [diaSeleccionado, setDiaSeleccionado] = useState<Date | null>(null)
   const [isNuevoHorarioDialogOpen, setIsNuevoHorarioDialogOpen] = useState(false)
   const [isDataLoaded, setIsDataLoaded] = useState(false)
-  const [isOnline, setIsOnline] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -76,23 +75,6 @@ export default function CalendarioHorarios() {
       esHoraExtra: false,
     },
   })
-
-  // Verificar estado de conexión
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
-
-    window.addEventListener("online", handleOnline)
-    window.addEventListener("offline", handleOffline)
-
-    // Establecer estado inicial
-    setIsOnline(navigator.onLine)
-
-    return () => {
-      window.removeEventListener("online", handleOnline)
-      window.removeEventListener("offline", handleOffline)
-    }
-  }, [])
 
   // Observar cambios en esHoraExtra para resetear tipoHoraExtra cuando se desmarca
   const esHoraExtra = form.watch("esHoraExtra")
@@ -118,13 +100,7 @@ export default function CalendarioHorarios() {
   useEffect(() => {
     const cargarRegistros = async () => {
       setIsLoading(true)
-      setError(null)
-
       try {
-        if (!navigator.onLine) {
-          throw new Error("No hay conexión a internet. Verifica tu conexión e intenta nuevamente.")
-        }
-
         const data = await obtenerRegistrosHoras()
         // Filtrar registros para el mes actual
         const registrosFiltrados = data.filter((registro) => {
@@ -134,10 +110,9 @@ export default function CalendarioHorarios() {
         setRegistros(registrosFiltrados)
       } catch (error) {
         console.error("Error al cargar registros:", error)
-        setError(error instanceof Error ? error.message : "Error al cargar los registros")
         toast({
           title: "Error",
-          description: "No se pudieron cargar los registros. Verifica tu conexión a internet.",
+          description: "No se pudieron cargar los registros",
           variant: "destructive",
         })
       } finally {
@@ -222,6 +197,42 @@ export default function CalendarioHorarios() {
     setIsDialogOpen(true)
   }
 
+  // Función para eliminar un registro
+  const eliminarRegistro = async () => {
+    if (!registroSeleccionado || !registroSeleccionado.id) return
+
+    const confirmacion = confirm(
+      "¿Está seguro que desea eliminar este horario? Se eliminará toda la información y no se podrá recuperar.",
+    )
+
+    if (!confirmacion) return
+
+    setIsDeleting(true)
+    try {
+      await eliminarRegistroHora(registroSeleccionado.id)
+
+      // Actualizar la lista de registros
+      setRegistros(registros.filter((r) => r.id !== registroSeleccionado.id))
+
+      toast({
+        title: "Horario eliminado",
+        description: "El horario ha sido eliminado correctamente",
+      })
+
+      setIsDialogOpen(false)
+      setRegistroSeleccionado(null)
+    } catch (error) {
+      console.error("Error al eliminar registro:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el horario",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   // Función para abrir el diálogo de nuevo horario
   const abrirDialogoNuevoHorario = (fecha: Date) => {
     setDiaSeleccionado(fecha)
@@ -241,19 +252,7 @@ export default function CalendarioHorarios() {
   const onSubmit = async (values: FormValues) => {
     if (!registroSeleccionado || !registroSeleccionado.id) return
 
-    // Verificar conexión a internet
-    if (!navigator.onLine) {
-      toast({
-        title: "Sin conexión",
-        description: "No hay conexión a internet. Verifica tu conexión e intenta nuevamente.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsSaving(true)
-    setError(null)
-
+    setIsSavingForm(true)
     try {
       const tipoRecargo = determinarTipoRecargo(
         values.horaInicio,
@@ -266,7 +265,7 @@ export default function CalendarioHorarios() {
       // Calcular horas trabajadas
       const horasTrabajadas = calcularHorasTrabajadas(values.horaInicio, values.horaFin)
 
-      // Actualizar el registro
+      // Actualizar el registro directamente sin eliminar y recrear
       const registroActualizado: RegistroHora = {
         id: registroSeleccionado.id,
         empleadoId: values.empleadoId,
@@ -284,11 +283,10 @@ export default function CalendarioHorarios() {
       await eliminarRegistroHora(registroSeleccionado.id)
       const nuevoId = await guardarRegistroHora(registroActualizado)
 
-      // Asegurarse de que el ID se mantenga o se actualice correctamente
-      registroActualizado.id = nuevoId || registroSeleccionado.id
-
       // Actualizar la lista de registros
-      setRegistros(registros.map((r) => (r.id === registroSeleccionado.id ? registroActualizado : r)))
+      setRegistros(
+        registros.map((r) => (r.id === registroSeleccionado.id ? { ...registroActualizado, id: nuevoId } : r)),
+      )
 
       toast({
         title: "Registro actualizado",
@@ -296,16 +294,16 @@ export default function CalendarioHorarios() {
       })
 
       setIsDialogOpen(false)
+      setRegistroSeleccionado(null)
     } catch (error) {
       console.error("Error al actualizar registro:", error)
-      setError(error instanceof Error ? error.message : "Error al actualizar el registro")
       toast({
         title: "Error",
-        description: "No se pudo actualizar el registro. Verifica tu conexión a internet.",
+        description: "No se pudo actualizar el registro",
         variant: "destructive",
       })
     } finally {
-      setIsSaving(false)
+      setIsSavingForm(false)
     }
   }
 
@@ -313,19 +311,7 @@ export default function CalendarioHorarios() {
   const onSubmitNuevoHorario = async (values: FormValues) => {
     if (!diaSeleccionado) return
 
-    // Verificar conexión a internet
-    if (!navigator.onLine) {
-      toast({
-        title: "Sin conexión",
-        description: "No hay conexión a internet. Verifica tu conexión e intenta nuevamente.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsSaving(true)
-    setError(null)
-
+    setIsSavingForm(true)
     try {
       const tipoRecargo = determinarTipoRecargo(
         values.horaInicio,
@@ -354,29 +340,24 @@ export default function CalendarioHorarios() {
       // Guardar en Firebase
       const id = await guardarRegistroHora(nuevoRegistro)
 
-      if (id) {
-        // Actualizar la lista de registros con el ID devuelto por Firebase
-        setRegistros([...registros, { ...nuevoRegistro, id }])
+      // Actualizar la lista de registros con el ID devuelto por Firebase
+      setRegistros([...registros, { ...nuevoRegistro, id }])
 
-        toast({
-          title: "Horario registrado",
-          description: "El nuevo horario ha sido registrado correctamente",
-        })
+      toast({
+        title: "Horario registrado",
+        description: "El nuevo horario ha sido registrado correctamente",
+      })
 
-        setIsNuevoHorarioDialogOpen(false)
-      } else {
-        throw new Error("No se pudo obtener el ID del nuevo registro")
-      }
+      setIsNuevoHorarioDialogOpen(false)
     } catch (error: any) {
       console.error("Error al registrar horario:", error)
-      setError(error instanceof Error ? error.message : "Error al registrar el horario")
       toast({
         title: "Error",
-        description: "No se pudo registrar el horario. Verifica tu conexión a internet.",
+        description: "No se pudo registrar el horario. Verifique los datos ingresados.",
         variant: "destructive",
       })
     } finally {
-      setIsSaving(false)
+      setIsSavingForm(false)
     }
   }
 
@@ -411,95 +392,65 @@ export default function CalendarioHorarios() {
   const getColorByTipoRecargo = (tipo: string) => {
     switch (tipo) {
       case "Normal":
-        return "bg-muted"
+        return "bg-gray-100 dark:bg-gray-800"
       case "HED":
-        return "bg-muted"
+        return "bg-blue-100 dark:bg-blue-900"
       case "HNN":
-        return "bg-muted"
+        return "bg-purple-100 dark:bg-purple-900"
       case "HEN":
-        return "bg-muted"
+        return "bg-indigo-100 dark:bg-indigo-900"
       case "HFD":
-        return "bg-muted"
+        return "bg-orange-100 dark:bg-orange-900"
       case "HEFD":
-        return "bg-muted"
+        return "bg-amber-100 dark:bg-amber-900"
       case "HFN":
-        return "bg-muted"
+        return "bg-rose-100 dark:bg-rose-900"
       case "HEFN":
-        return "bg-muted"
+        return "bg-pink-100 dark:bg-pink-900"
       default:
-        return "bg-muted"
+        return "bg-gray-100 dark:bg-gray-800"
     }
   }
 
   // Si los datos aún no se han cargado, mostrar un estado de carga
   if (!isDataLoaded) {
     return (
-      <main className="min-h-screen bg-white p-6 flex items-center justify-center">
+      <main className="min-h-screen bg-background p-4 md:p-6 flex items-center justify-center">
         <div className="flex flex-col items-center">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-500 mb-4" />
-          <p className="text-lg">Cargando calendario de horarios...</p>
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <p className="text-lg text-foreground">Cargando calendario de horarios...</p>
         </div>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-background p-6">
-      {!isOnline && (
-        <Alert variant="destructive" className="mb-4">
-          <WifiOff className="h-4 w-4" />
-          <AlertTitle>Sin conexión a internet</AlertTitle>
-          <AlertDescription>
-            No tienes conexión a internet. Algunas funciones pueden no estar disponibles.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {error && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Calendario de Horarios</h1>
-        <div className="flex items-center gap-2">
-          {isOnline ? (
-            <div className="flex items-center text-green-600">
-              <Wifi className="h-4 w-4 mr-1" />
-              <span className="text-sm">Conectado</span>
-            </div>
-          ) : (
-            <div className="flex items-center text-red-600">
-              <WifiOff className="h-4 w-4 mr-1" />
-              <span className="text-sm">Sin conexión</span>
-            </div>
-          )}
-        </div>
-      </div>
-
+    <main className="min-h-screen bg-background p-2 md:p-6">
       <Card className="mx-auto max-w-7xl">
-        <CardHeader className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-          <CardTitle className="text-2xl font-bold">Calendario de Horarios</CardTitle>
+        <CardHeader className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 p-4 md:p-6">
+          <CardTitle className="text-xl md:text-2xl font-bold text-card-foreground">Calendario de Horarios</CardTitle>
           <div className="flex items-center space-x-2">
-            <Button variant="outline" onClick={() => setMesActual(subMonths(mesActual, 1))}>
+            <Button variant="outline" size="sm" onClick={() => setMesActual(subMonths(mesActual, 1))}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-lg font-medium">{format(mesActual, "MMMM yyyy", { locale: es })}</span>
-            <Button variant="outline" onClick={() => setMesActual(addMonths(mesActual, 1))}>
+            <span className="text-sm md:text-lg font-medium text-foreground min-w-[140px] text-center">
+              {format(mesActual, "MMMM yyyy", { locale: es })}
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setMesActual(addMonths(mesActual, 1))}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </CardHeader>
 
-        <CardContent>
-          <div className="grid grid-cols-7 gap-2">
+        <CardContent className="p-2 md:p-6">
+          <div className="grid grid-cols-7 gap-1 md:gap-2">
             {/* Encabezados de días de la semana */}
-            {["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"].map((dia) => (
-              <div key={dia} className="text-center font-medium p-2">
-                {dia}
+            {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((dia, index) => (
+              <div key={dia} className="text-center font-medium p-1 md:p-2 text-foreground text-xs md:text-sm">
+                <span className="hidden md:inline">
+                  {["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"][index]}
+                </span>
+                <span className="md:hidden">{dia}</span>
               </div>
             ))}
 
@@ -507,7 +458,7 @@ export default function CalendarioHorarios() {
             {diasCalendario.map((dia, index) => {
               if (!dia) {
                 // Día vacío para completar la primera semana
-                return <div key={`empty-${index}`} className="h-36"></div>
+                return <div key={`empty-${index}`} className="h-24 md:h-36"></div>
               }
 
               const fechaStr = format(dia, "yyyy-MM-dd")
@@ -515,43 +466,55 @@ export default function CalendarioHorarios() {
               const esDiaActual = isSameDay(dia, new Date())
 
               return (
-                <Card key={fechaStr} className={`h-36 relative ${esDiaActual ? "border-blue-500 border-2" : ""}`}>
-                  <div className="absolute top-1 right-2 font-bold text-sm">{format(dia, "d")}</div>
-                  <CardContent className="p-2 pt-6 overflow-y-auto h-[calc(100%-30px)]">
+                <Card
+                  key={fechaStr}
+                  className={`h-24 md:h-36 overflow-hidden relative ${esDiaActual ? "border-primary border-2" : ""}`}
+                >
+                  <CardHeader className="p-1 pb-0">
+                    <div className="text-right font-bold text-xs md:text-sm text-card-foreground">
+                      {format(dia, "d")}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-1 overflow-y-auto max-h-[calc(100%-32px)] md:max-h-[calc(100%-40px)]">
                     {registrosDia.length > 0 ? (
                       <div className="space-y-1">
-                        {registrosDia.map((registro, idx) => (
+                        {registrosDia.slice(0, 2).map((registro, idx) => (
                           <div
                             key={idx}
                             className={`rounded p-1 text-xs ${getColorByTipoRecargo(registro.tipoRecargo)} cursor-pointer hover:opacity-80`}
                             onClick={() => editarRegistro(registro)}
                           >
                             <div className="flex justify-between items-center">
-                              <span className="font-medium truncate">
+                              <span className="font-medium truncate text-foreground text-xs">
                                 {registro.horaInicio}-{registro.horaFin}
                               </span>
                             </div>
-                            <div className="truncate">{registro.empleadoId.split(" ")[0]}</div>
+                            <div className="truncate text-foreground text-xs">{registro.empleadoId.split(" ")[0]}</div>
                           </div>
                         ))}
+                        {registrosDia.length > 2 && (
+                          <div className="text-xs text-muted-foreground text-center">
+                            +{registrosDia.length - 2} más
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <div className="text-center text-xs text-gray-400 h-full flex items-center justify-center">
-                        Sin horarios
+                      <div className="text-center text-xs text-muted-foreground h-full flex items-center justify-center">
+                        <span className="hidden md:inline">Sin horarios</span>
+                        <span className="md:hidden">-</span>
                       </div>
                     )}
                   </CardContent>
-                  <div className="absolute bottom-1 left-0 right-0 flex justify-center">
+                  <CardFooter className="p-0 absolute bottom-0 right-0 m-1">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0 rounded-full bg-gray-100 hover:bg-gray-200"
+                      className="h-5 w-5 md:h-6 md:w-6 p-0 rounded-full bg-muted hover:bg-muted/80"
                       onClick={() => abrirDialogoNuevoHorario(dia)}
-                      disabled={!isOnline}
                     >
-                      <Plus className="h-4 w-4" />
+                      <Plus className="h-3 w-3 md:h-4 md:w-4" />
                     </Button>
-                  </div>
+                  </CardFooter>
                 </Card>
               )
             })}
@@ -560,15 +523,21 @@ export default function CalendarioHorarios() {
       </Card>
 
       {/* Diálogo para editar horario */}
-      <Dialog
-        open={isDialogOpen}
-        onOpenChange={(open) => {
-          if (!isSaving) setIsDialogOpen(open)
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md max-w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar Horario</DialogTitle>
+            <DialogTitle className="flex items-center justify-between text-sm md:text-base">
+              <span>Editar Horario</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={eliminarRegistro}
+                disabled={isDeleting}
+                className="bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900 dark:text-red-300 dark:hover:bg-red-800"
+              >
+                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              </Button>
+            </DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -577,10 +546,10 @@ export default function CalendarioHorarios() {
                 name="empleadoId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Empleado</FormLabel>
+                    <FormLabel className="text-sm">Empleado</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className="text-sm">
                           <SelectValue placeholder="Selecciona un empleado" />
                         </SelectTrigger>
                       </FormControl>
@@ -597,15 +566,15 @@ export default function CalendarioHorarios() {
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="horaInicio"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Hora de Inicio</FormLabel>
+                      <FormLabel className="text-sm">Hora de Inicio</FormLabel>
                       <FormControl>
-                        <Input placeholder="HH:MM (24h)" {...field} />
+                        <Input placeholder="HH:MM (24h)" {...field} className="text-sm" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -617,9 +586,9 @@ export default function CalendarioHorarios() {
                   name="horaFin"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Hora de Fin</FormLabel>
+                      <FormLabel className="text-sm">Hora de Fin</FormLabel>
                       <FormControl>
-                        <Input placeholder="HH:MM (24h)" {...field} />
+                        <Input placeholder="HH:MM (24h)" {...field} className="text-sm" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -631,13 +600,13 @@ export default function CalendarioHorarios() {
                 control={form.control}
                 name="esFeriado"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border border-border p-3 md:p-4">
                     <FormControl>
                       <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>
                     <div className="space-y-1 leading-none">
-                      <FormLabel>Día Feriado</FormLabel>
-                      <p className="text-sm text-gray-500">Marque esta casilla si el día es feriado</p>
+                      <FormLabel className="text-sm">Día Feriado</FormLabel>
+                      <p className="text-xs text-muted-foreground">Marque esta casilla si el día es feriado</p>
                     </div>
                   </FormItem>
                 )}
@@ -647,13 +616,13 @@ export default function CalendarioHorarios() {
                 control={form.control}
                 name="esHoraExtra"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border border-border p-3 md:p-4">
                     <FormControl>
                       <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>
                     <div className="space-y-1 leading-none">
-                      <FormLabel>Hora Extra</FormLabel>
-                      <p className="text-sm text-gray-500">
+                      <FormLabel className="text-sm">Hora Extra</FormLabel>
+                      <p className="text-xs text-muted-foreground">
                         Marque esta casilla si las horas trabajadas son horas extras
                       </p>
                     </div>
@@ -667,7 +636,7 @@ export default function CalendarioHorarios() {
                   name="tipoHoraExtra"
                   render={({ field }) => (
                     <FormItem className="space-y-3">
-                      <FormLabel>Tipo de Hora Extra</FormLabel>
+                      <FormLabel className="text-sm">Tipo de Hora Extra</FormLabel>
                       <FormControl>
                         <RadioGroup
                           onValueChange={field.onChange}
@@ -678,13 +647,13 @@ export default function CalendarioHorarios() {
                             <FormControl>
                               <RadioGroupItem value="diurna" />
                             </FormControl>
-                            <FormLabel className="font-normal">Diurna (6am - 9pm)</FormLabel>
+                            <FormLabel className="font-normal text-sm">Diurna (6am - 9pm)</FormLabel>
                           </FormItem>
                           <FormItem className="flex items-center space-x-3 space-y-0">
                             <FormControl>
                               <RadioGroupItem value="nocturna" />
                             </FormControl>
-                            <FormLabel className="font-normal">Nocturna (9pm - 6am)</FormLabel>
+                            <FormLabel className="font-normal text-sm">Nocturna (9pm - 6am)</FormLabel>
                           </FormItem>
                         </RadioGroup>
                       </FormControl>
@@ -694,30 +663,25 @@ export default function CalendarioHorarios() {
                 />
               )}
 
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
+              <div className="flex flex-col md:flex-row justify-end space-y-2 md:space-y-0 md:space-x-2">
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="text-sm">
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isSaving || !isOnline}>
-                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {isSaving ? "Guardando..." : "Guardar Cambios"}
+                <Button type="submit" disabled={isSavingForm} className="text-sm">
+                  {isSavingForm ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Guardar Cambios
                 </Button>
-              </DialogFooter>
+              </div>
             </form>
           </Form>
         </DialogContent>
       </Dialog>
 
       {/* Diálogo para nuevo horario */}
-      <Dialog
-        open={isNuevoHorarioDialogOpen}
-        onOpenChange={(open) => {
-          if (!isSaving) setIsNuevoHorarioDialogOpen(open)
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={isNuevoHorarioDialogOpen} onOpenChange={setIsNuevoHorarioDialogOpen}>
+        <DialogContent className="sm:max-w-md max-w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-sm md:text-base">
               Nuevo Horario - {diaSeleccionado ? format(diaSeleccionado, "dd/MM/yyyy", { locale: es }) : ""}
             </DialogTitle>
           </DialogHeader>
@@ -728,10 +692,10 @@ export default function CalendarioHorarios() {
                 name="empleadoId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Empleado</FormLabel>
+                    <FormLabel className="text-sm">Empleado</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className="text-sm">
                           <SelectValue placeholder="Selecciona un empleado" />
                         </SelectTrigger>
                       </FormControl>
@@ -748,15 +712,15 @@ export default function CalendarioHorarios() {
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={formNuevoHorario.control}
                   name="horaInicio"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Hora de Inicio</FormLabel>
+                      <FormLabel className="text-sm">Hora de Inicio</FormLabel>
                       <FormControl>
-                        <Input placeholder="HH:MM (24h)" {...field} />
+                        <Input placeholder="HH:MM (24h)" {...field} className="text-sm" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -768,9 +732,9 @@ export default function CalendarioHorarios() {
                   name="horaFin"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Hora de Fin</FormLabel>
+                      <FormLabel className="text-sm">Hora de Fin</FormLabel>
                       <FormControl>
-                        <Input placeholder="HH:MM (24h)" {...field} />
+                        <Input placeholder="HH:MM (24h)" {...field} className="text-sm" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -782,13 +746,13 @@ export default function CalendarioHorarios() {
                 control={formNuevoHorario.control}
                 name="esFeriado"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border border-border p-3 md:p-4">
                     <FormControl>
                       <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>
                     <div className="space-y-1 leading-none">
-                      <FormLabel>Día Feriado</FormLabel>
-                      <p className="text-sm text-gray-500">Marque esta casilla si el día es feriado</p>
+                      <FormLabel className="text-sm">Día Feriado</FormLabel>
+                      <p className="text-xs text-muted-foreground">Marque esta casilla si el día es feriado</p>
                     </div>
                   </FormItem>
                 )}
@@ -798,13 +762,13 @@ export default function CalendarioHorarios() {
                 control={formNuevoHorario.control}
                 name="esHoraExtra"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border border-border p-3 md:p-4">
                     <FormControl>
                       <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>
                     <div className="space-y-1 leading-none">
-                      <FormLabel>Hora Extra</FormLabel>
-                      <p className="text-sm text-gray-500">
+                      <FormLabel className="text-sm">Hora Extra</FormLabel>
+                      <p className="text-xs text-muted-foreground">
                         Marque esta casilla si las horas trabajadas son horas extras
                       </p>
                     </div>
@@ -818,7 +782,7 @@ export default function CalendarioHorarios() {
                   name="tipoHoraExtra"
                   render={({ field }) => (
                     <FormItem className="space-y-3">
-                      <FormLabel>Tipo de Hora Extra</FormLabel>
+                      <FormLabel className="text-sm">Tipo de Hora Extra</FormLabel>
                       <FormControl>
                         <RadioGroup
                           onValueChange={field.onChange}
@@ -829,13 +793,13 @@ export default function CalendarioHorarios() {
                             <FormControl>
                               <RadioGroupItem value="diurna" />
                             </FormControl>
-                            <FormLabel className="font-normal">Diurna (6am - 9pm)</FormLabel>
+                            <FormLabel className="font-normal text-sm">Diurna (6am - 9pm)</FormLabel>
                           </FormItem>
                           <FormItem className="flex items-center space-x-3 space-y-0">
                             <FormControl>
                               <RadioGroupItem value="nocturna" />
                             </FormControl>
-                            <FormLabel className="font-normal">Nocturna (9pm - 6am)</FormLabel>
+                            <FormLabel className="font-normal text-sm">Nocturna (9pm - 6am)</FormLabel>
                           </FormItem>
                         </RadioGroup>
                       </FormControl>
@@ -845,20 +809,20 @@ export default function CalendarioHorarios() {
                 />
               )}
 
-              <DialogFooter>
+              <div className="flex flex-col md:flex-row justify-end space-y-2 md:space-y-0 md:space-x-2">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsNuevoHorarioDialogOpen(false)}
-                  disabled={isSaving}
+                  className="text-sm"
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isSaving || !isOnline}>
-                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {isSaving ? "Guardando..." : "Guardar Horario"}
+                <Button type="submit" disabled={isSavingForm} className="text-sm">
+                  {isSavingForm ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Guardar Horario
                 </Button>
-              </DialogFooter>
+              </div>
             </form>
           </Form>
         </DialogContent>

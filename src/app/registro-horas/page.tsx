@@ -23,20 +23,32 @@ import { useToast } from "../hooks/use-toast"
 import { empleados, type RegistroHora, tiposRecargo } from "../data/empleados"
 import { guardarRegistroHora, obtenerRegistrosHoras } from "../firebase/services"
 
-// Definir el esquema de formulario con zod
+// Definir el esquema de formulario con zod - TODOS LOS CAMPOS OBLIGATORIOS
 const formSchema = z.object({
-  empleadoId: z.string({
-    required_error: "Por favor selecciona un empleado",
-  }),
+  empleadoId: z
+    .string({
+      required_error: "Por favor selecciona un empleado",
+    })
+    .min(1, "El empleado es obligatorio"),
   fecha: z.date({
     required_error: "Por favor selecciona una fecha",
   }),
-  horaInicio: z.string().regex(/^([01]?[0-9]|2[0-3]|24):([0-5][0-9])$/, {
-    message: "Formato de hora inválido. Use HH:MM (24h)",
-  }),
-  horaFin: z.string().regex(/^([01]?[0-9]|2[0-3]|24):([0-5][0-9])$/, {
-    message: "Formato de hora inválido. Use HH:MM (24h)",
-  }),
+  horaInicio: z
+    .string({
+      required_error: "La hora de inicio es obligatoria",
+    })
+    .regex(/^([01]?[0-9]|2[0-3]|24):([0-5][0-9])$/, {
+      message: "Formato de hora inválido. Use HH:MM (24h)",
+    })
+    .min(1, "La hora de inicio es obligatoria"),
+  horaFin: z
+    .string({
+      required_error: "La hora de fin es obligatoria",
+    })
+    .regex(/^([01]?[0-9]|2[0-3]|24):([0-5][0-9])$/, {
+      message: "Formato de hora inválido. Use HH:MM (24h)",
+    })
+    .min(1, "La hora de fin es obligatoria"),
   esFeriado: z.boolean().default(false),
   esHoraExtra: z.boolean().default(false),
   cantidadHorasExtra: z.string().optional(),
@@ -54,6 +66,7 @@ export default function RegistroHoras() {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      empleadoId: "",
       horaInicio: "",
       horaFin: "",
       esFeriado: false,
@@ -225,7 +238,9 @@ export default function RegistroHoras() {
       <Card className="mx-auto max-w-4xl">
         <CardHeader>
           <CardTitle className="text-2xl font-bold">Registro de Horas Trabajadas</CardTitle>
-          <CardDescription>Ingresa las horas trabajadas por cada empleado</CardDescription>
+          <CardDescription>
+            Ingresa las horas trabajadas por cada empleado. Todos los campos marcados con * son obligatorios.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -235,8 +250,10 @@ export default function RegistroHoras() {
                 name="empleadoId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Empleado</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormLabel className="text-foreground">
+                      Empleado <span className="text-red-500">*</span>
+                    </FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecciona un empleado" />
@@ -260,24 +277,26 @@ export default function RegistroHoras() {
                 name="fecha"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Fecha</FormLabel>
+                    <FormLabel className="text-foreground">
+                      Fecha <span className="text-red-500">*</span>
+                    </FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
                             variant={"outline"}
-                            className={cn(" flex items-center justify-between pr-2 gap-2 font-normal", !field.value && "text-muted-foreground")}
+                            className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
                           >
                             {field.value ? (
                               format(field.value, "PPP", { locale: es })
                             ) : (
                               <span>Selecciona una fecha</span>
                             )}
-                            <CalendarIcon className=" h-4 w-4 opacity-50" />
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-1 justify-center" align="start">
+                      <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
                           selected={field.value}
@@ -298,10 +317,12 @@ export default function RegistroHoras() {
                   name="horaInicio"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Hora de Inicio</FormLabel>
+                      <FormLabel className="text-foreground">
+                        Hora de Inicio <span className="text-red-500">*</span>
+                      </FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <Clock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                           <Input placeholder="HH:MM (24h)" className="pl-10" {...field} />
                         </div>
                       </FormControl>
@@ -315,10 +336,12 @@ export default function RegistroHoras() {
                   name="horaFin"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Hora de Fin</FormLabel>
+                      <FormLabel className="text-foreground">
+                        Hora de Fin <span className="text-red-500">*</span>
+                      </FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <Clock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                           <Input placeholder="HH:MM (24h)" className="pl-10" {...field} />
                         </div>
                       </FormControl>
@@ -332,17 +355,17 @@ export default function RegistroHoras() {
                 control={form.control}
                 name="esFeriado"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border border-border p-4">
                     <FormControl>
                       <Checkbox
                         checked={field.value}
                         onCheckedChange={field.onChange}
-                        className="data-[state=checked]:bg-blue-500"
+                        className="data-[state=checked]:bg-primary"
                       />
                     </FormControl>
                     <div className="space-y-1 leading-none">
-                      <FormLabel>Día Feriado</FormLabel>
-                      <p className="text-sm text-gray-500">
+                      <FormLabel className="text-foreground">Día Feriado</FormLabel>
+                      <p className="text-sm text-muted-foreground">
                         Marque esta casilla si el día es feriado (independientemente de si es domingo)
                       </p>
                     </div>
@@ -354,17 +377,17 @@ export default function RegistroHoras() {
                 control={form.control}
                 name="esHoraExtra"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border border-border p-4">
                     <FormControl>
                       <Checkbox
                         checked={field.value}
                         onCheckedChange={field.onChange}
-                        className="data-[state=checked]:bg-blue-500"
+                        className="data-[state=checked]:bg-primary"
                       />
                     </FormControl>
                     <div className="space-y-1 leading-none">
-                      <FormLabel>Hora Extra</FormLabel>
-                      <p className="text-sm text-gray-500">
+                      <FormLabel className="text-foreground">Hora Extra</FormLabel>
+                      <p className="text-sm text-muted-foreground">
                         Marque esta casilla si las horas trabajadas incluyen horas extras
                       </p>
                     </div>
@@ -379,7 +402,7 @@ export default function RegistroHoras() {
                     name="cantidadHorasExtra"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Cantidad de Horas Extra</FormLabel>
+                        <FormLabel className="text-foreground">Cantidad de Horas Extra</FormLabel>
                         <FormControl>
                           <Input type="number" step="0.01" min="0" placeholder="Ej: 2.5" {...field} />
                         </FormControl>
@@ -393,7 +416,7 @@ export default function RegistroHoras() {
                     name="tipoHoraExtra"
                     render={({ field }) => (
                       <FormItem className="space-y-3">
-                        <FormLabel>Tipo de Hora Extra</FormLabel>
+                        <FormLabel className="text-foreground">Tipo de Hora Extra</FormLabel>
                         <FormControl>
                           <RadioGroup
                             onValueChange={field.onChange}
@@ -404,13 +427,13 @@ export default function RegistroHoras() {
                               <FormControl>
                                 <RadioGroupItem value="diurna" />
                               </FormControl>
-                              <FormLabel className="font-normal">Diurna (6am - 9pm)</FormLabel>
+                              <FormLabel className="font-normal text-foreground">Diurna (6am - 9pm)</FormLabel>
                             </FormItem>
                             <FormItem className="flex items-center space-x-3 space-y-0">
                               <FormControl>
                                 <RadioGroupItem value="nocturna" />
                               </FormControl>
-                              <FormLabel className="font-normal">Nocturna (9pm - 6am)</FormLabel>
+                              <FormLabel className="font-normal text-foreground">Nocturna (9pm - 6am)</FormLabel>
                             </FormItem>
                           </RadioGroup>
                         </FormControl>
@@ -429,47 +452,47 @@ export default function RegistroHoras() {
         </CardContent>
 
         <CardFooter className="flex flex-col">
-          <h3 className="mb-4 text-xl font-semibold">Registros Recientes</h3>
+          <h3 className="mb-4 text-xl font-semibold text-foreground">Registros Recientes</h3>
           <div className="w-full overflow-auto">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="border-b">
-                  <th className="p-2 text-left">Empleado</th>
-                  <th className="p-2 text-left">Fecha</th>
-                  <th className="p-2 text-left">Horario</th>
-                  <th className="p-2 text-left">Horas</th>
-                  <th className="p-2 text-left">Tipo</th>
-                  <th className="p-2 text-left">Feriado</th>
-                  <th className="p-2 text-left">Hora Extra</th>
+                <tr className="border-b border-border">
+                  <th className="p-2 text-left text-foreground">Empleado</th>
+                  <th className="p-2 text-left text-foreground">Fecha</th>
+                  <th className="p-2 text-left text-foreground">Horario</th>
+                  <th className="p-2 text-left text-foreground">Horas</th>
+                  <th className="p-2 text-left text-foreground">Tipo</th>
+                  <th className="p-2 text-left text-foreground">Feriado</th>
+                  <th className="p-2 text-left text-foreground">Hora Extra</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="p-4 text-center text-gray-400">
+                    <td colSpan={7} className="p-4 text-center text-muted-foreground">
                       Cargando registros...
                     </td>
                   </tr>
                 ) : registros.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-4 text-center text-gray-400">
+                    <td colSpan={7} className="p-4 text-center text-muted-foreground">
                       No hay registros aún
                     </td>
                   </tr>
                 ) : (
                   registros.map((registro) => (
-                    <tr key={registro.id} className="border-b">
-                      <td className="p-2">{registro.empleadoId}</td>
-                      <td className="p-2">{format(new Date(registro.fecha), "dd/MM/yyyy")}</td>
-                      <td className="p-2">{`${registro.horaInicio} - ${registro.horaFin}`}</td>
-                      <td className="p-2">{registro.horasTrabajadas.toFixed(2)}</td>
-                      <td className="p-2">
+                    <tr key={registro.id} className="border-b border-border">
+                      <td className="p-2 text-foreground">{registro.empleadoId}</td>
+                      <td className="p-2 text-foreground">{format(new Date(registro.fecha), "dd/MM/yyyy")}</td>
+                      <td className="p-2 text-foreground">{`${registro.horaInicio} - ${registro.horaFin}`}</td>
+                      <td className="p-2 text-foreground">{registro.horasTrabajadas.toFixed(2)}</td>
+                      <td className="p-2 text-foreground">
                         {registro.tipoRecargo in tiposRecargo
                           ? tiposRecargo[registro.tipoRecargo as keyof typeof tiposRecargo]
                           : registro.tipoRecargo}
                       </td>
-                      <td className="p-2">{registro.esFeriado ? "Sí" : "No"}</td>
-                      <td className="p-2">
+                      <td className="p-2 text-foreground">{registro.esFeriado ? "Sí" : "No"}</td>
+                      <td className="p-2 text-foreground">
                         {registro.esHoraExtra
                           ? `${registro.cantidadHorasExtra || 0} hrs (${registro.tipoHoraExtra === "diurna" ? "Diurna" : "Nocturna"})`
                           : "No"}
