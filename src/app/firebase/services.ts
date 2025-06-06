@@ -20,6 +20,7 @@ import type { RegistroHora, ResumenEmpleado } from "../data/empleados"
 const REGISTROS_COLLECTION = "registros_horas"
 const RESUMENES_COLLECTION = "resumenes_empleados"
 const CONFIGURACION_COLLECTION = "configuracion"
+const TAREAS_COLLECTION = "tareas"
 
 // Interfaces para Firebase
 export interface RegistroHoraFirebase extends Omit<RegistroHora, "fecha" | "id"> {
@@ -38,6 +39,22 @@ export interface ResumenEmpleadoFirebase extends Omit<ResumenEmpleado, "periodo"
   fechaGuardado?: Timestamp
   id?: string
   totalValor?: number
+}
+
+// Nueva interfaz para Tareas
+export interface Tarea {
+  id?: string
+  titulo: string
+  descripcion: string
+  fechaLimite: Date
+  completada: boolean
+  fechaCreacion: Date
+}
+
+export interface TareaFirebase extends Omit<Tarea, "fechaLimite" | "fechaCreacion" | "id"> {
+  fechaLimite: Timestamp
+  fechaCreacion: Timestamp
+  id?: string
 }
 
 // Función para limpiar objetos antes de guardarlos en Firebase
@@ -486,6 +503,140 @@ export async function actualizarResumenEmpleado(resumen: any) {
   } catch (error) {
     console.error("Error al actualizar resumen:", error)
     throw error
+  }
+}
+
+// ==================== FUNCIONES PARA TAREAS ====================
+
+// Función para guardar una nueva tarea
+export const guardarTarea = async (tarea: Omit<Tarea, "id">): Promise<string> => {
+  try {
+    console.log("Guardando tarea:", JSON.stringify(tarea, null, 2))
+
+    // Crear objeto para Firebase con Timestamps
+    const tareaFirebase: Omit<TareaFirebase, "id"> = {
+      titulo: tarea.titulo,
+      descripcion: tarea.descripcion,
+      fechaLimite: Timestamp.fromDate(tarea.fechaLimite),
+      completada: tarea.completada,
+      fechaCreacion: Timestamp.fromDate(tarea.fechaCreacion),
+    }
+
+    // Limpiar el objeto
+    const tareaLimpia = limpiarObjeto(tareaFirebase)
+    console.log("Tarea limpia a guardar:", JSON.stringify(tareaLimpia, null, 2))
+
+    // Guardar en Firestore
+    const docRef = await addDoc(collection(db, TAREAS_COLLECTION), tareaLimpia)
+    console.log("Tarea guardada con ID:", docRef.id)
+    return docRef.id
+  } catch (error) {
+    console.error("Error al guardar tarea:", error)
+    if (error instanceof Error) {
+      throw new Error(`Error al guardar tarea: ${error.message}`)
+    }
+    throw error
+  }
+}
+
+// Función para obtener todas las tareas
+export const obtenerTareas = async (): Promise<Tarea[]> => {
+  try {
+    console.log("Obteniendo tareas desde Firebase...")
+    const querySnapshot = await getDocs(query(collection(db, TAREAS_COLLECTION), orderBy("fechaCreacion", "desc")))
+
+    console.log("Tareas encontradas:", querySnapshot.docs.length)
+
+    const tareas = querySnapshot.docs.map((doc) => {
+      const data = doc.data() as TareaFirebase
+      return {
+        id: doc.id,
+        titulo: data.titulo,
+        descripcion: data.descripcion,
+        fechaLimite: data.fechaLimite.toDate(),
+        completada: data.completada,
+        fechaCreacion: data.fechaCreacion.toDate(),
+      } as Tarea
+    })
+
+    console.log("Tareas procesadas:", tareas.length)
+    return tareas
+  } catch (error) {
+    console.error("Error al obtener tareas:", error)
+    return []
+  }
+}
+
+// Función para actualizar una tarea
+export const actualizarTarea = async (id: string, actualizaciones: Partial<Omit<Tarea, "id">>): Promise<void> => {
+  try {
+    console.log("Actualizando tarea:", id, actualizaciones)
+
+    // Convertir fechas a Timestamps si existen
+    const actualizacionesFirebase: any = { ...actualizaciones }
+
+    if (actualizaciones.fechaLimite) {
+      actualizacionesFirebase.fechaLimite = Timestamp.fromDate(actualizaciones.fechaLimite)
+    }
+
+    if (actualizaciones.fechaCreacion) {
+      actualizacionesFirebase.fechaCreacion = Timestamp.fromDate(actualizaciones.fechaCreacion)
+    }
+
+    // Limpiar el objeto
+    const actualizacionesLimpias = limpiarObjeto(actualizacionesFirebase)
+
+    // Actualizar en Firestore
+    const tareaRef = doc(db, TAREAS_COLLECTION, id)
+    await updateDoc(tareaRef, actualizacionesLimpias)
+
+    console.log("Tarea actualizada exitosamente")
+  } catch (error) {
+    console.error("Error al actualizar tarea:", error)
+    if (error instanceof Error) {
+      throw new Error(`Error al actualizar tarea: ${error.message}`)
+    }
+    throw error
+  }
+}
+
+// Función para eliminar una tarea
+export const eliminarTarea = async (id: string): Promise<void> => {
+  try {
+    console.log("Eliminando tarea:", id)
+    await deleteDoc(doc(db, TAREAS_COLLECTION, id))
+    console.log("Tarea eliminada exitosamente")
+  } catch (error) {
+    console.error("Error al eliminar tarea:", error)
+    if (error instanceof Error) {
+      throw new Error(`Error al eliminar tarea: ${error.message}`)
+    }
+    throw error
+  }
+}
+
+// Función para obtener una tarea por ID
+export const obtenerTareaPorId = async (id: string): Promise<Tarea | null> => {
+  try {
+    const docRef = doc(db, TAREAS_COLLECTION, id)
+    const docSnap = await getDoc(docRef)
+
+    if (!docSnap.exists()) {
+      return null
+    }
+
+    const data = docSnap.data() as TareaFirebase
+    return {
+      id: docSnap.id,
+      titulo: data.titulo,
+      descripcion: data.descripcion,
+      fechaLimite: data.fechaLimite.toDate(),
+      completada: data.completada,
+      fechaCreacion: data.fechaCreacion.toDate(),
+    }
+  } catch (error) {
+    console.error("Error al obtener tarea por ID:", error)
+    return null
   }
 }
 

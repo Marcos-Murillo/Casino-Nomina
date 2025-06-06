@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Clock, BarChart2, User, FileText, Calendar, Menu, X } from "lucide-react"
+import { Home, Clock, BarChart2, User, FileText, Calendar, Menu, X, ListChecks } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "../components/ui/button"
 import { ThemeToggle } from "../components/theme-toggle"
@@ -23,6 +23,16 @@ const menuItems = [
     name: "Calendario de Horarios",
     href: "/calendario-horarios",
     icon: Calendar,
+  },
+  {
+    name: "Bitácora de Tareas",
+    href: "/bitacora-tareas",
+    icon: ListChecks,
+  },
+  {
+    name: "Resumen Semanal",
+    href: "/resumen-semanal",
+    icon: BarChart2,
   },
   {
     name: "Resumen por Empleado",
